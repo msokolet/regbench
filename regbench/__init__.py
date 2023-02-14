@@ -22,7 +22,5 @@
 
 from .utils import *
 from .io import *
-from .plots import *
-from .design import *
 from .ridge import *
 

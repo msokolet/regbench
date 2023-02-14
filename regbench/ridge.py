@@ -5,7 +5,7 @@ Docstring
 import numpy as np
 from scipy import optimize
 
-def ridge_MML(Y, X, recenter = True, L = None, regress = True, display_failures = True):
+def ridge_MML(Y, X, recenter = True, L = None, regress = True):
     """
     This is an implementation of Ridge regression with the Ridge parameter
     lambda determined using the fast algorithm of Karabatsos 2017 (see
@@ -83,7 +83,7 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True, display_failures 
     ## Error checking
 
     if np.size(Y, 0) != np.size(X, 0):
-        raise Exception('Size mismatch')
+        raise IndexError('Size mismatch')
 
     ## Ensure Y is zero-mean
     # This is needed to estimate lambdas, but if recenter = 0, the mean will be
@@ -97,7 +97,7 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True, display_failures 
 
     ## Renorm (Z-score)
 
-    X_std = np.std(X,axis=0, ddof=1)
+    X_std = np.std(X, axis=0, ddof=1)
     X = np.divide(X, X_std)
 
     if compute_L or recenter:
@@ -203,8 +203,11 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True, display_failures 
         XTY = X.T @ Y
 
         # Compute betas for renormed X
-        for i in range(0, pY):
-            betas[:, i] = np.linalg.solve(XTX + L[i] * ep, XTY[:, i])
+        if hasattr(L, "__len__"):
+            for i in range(0, pY):
+                betas[:, i] = np.linalg.solve(XTX + L[i] * ep, XTY[:, i])
+        else:
+            betas = np.linalg.solve(XTX + L * ep, XTY)
 
         # Adjust betas to account for renorming.
         betas = np.divide(betas.T, renorm).T
@@ -214,7 +217,7 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True, display_failures 
 
     ## Display fminbnd failures
     
-    if compute_L and display_failures and sum(convergence_failures) > 0:
+    if compute_L and sum(convergence_failures) > 0:
         print(f'fminbnd failed to converge {sum(convergence_failures)}/{pY} times')
     
     if compute_L and regress:
@@ -247,13 +250,12 @@ def ridge_MML_one_Y(q, d2, n, Y_var, alpha2):
     # Initialize index of the buffers where we'll write the next value
     sm_buffer_I = 0
                 
-    """
-    Evaluate the log likelihood of the data for increasing values of lambda
-    This is step 1 of the two-step algorithm at the bottom of page 6.
-    Basically, increment until we pass the peak. Here, I've added trying
-    small steps as normal, then switching over to using larger steps and
-    smoothing to combat local minima.
-    """
+    
+    # Evaluate the log likelihood of the data for increasing values of lambda
+    # This is step 1 of the two-step algorithm at the bottom of page 6.
+    # Basically, increment until we pass the peak. Here, I've added trying
+    # small steps as normal, then switching over to using larger steps and
+    # smoothing to combat local minima.
     
     ## Mint the negative log-likelihood function
     NLL_func = mint_NLL_func(q, d2, n, Y_var, alpha2)
@@ -282,12 +284,9 @@ def ridge_MML_one_Y(q, d2, n, Y_var, alpha2):
             done = True
             break
                         
-            
-    """
-    If we haven't already hit the max likelihood, continue increasing lambda,
-    but now apply smoothing to try to reduce the impact of local minima that
-    occur when lambda is large
-    """
+    # If we haven't already hit the max likelihood, continue increasing lambda,
+    # but now apply smoothing to try to reduce the impact of local minima that
+    # occur when lambda is large
 
     # Also increase step size from 1/4 to L/stepDenom, for speed and robustness
     # to local minima
@@ -326,22 +325,22 @@ def ridge_MML_one_Y(q, d2, n, Y_var, alpha2):
 
                 passed_min = True
                 done = True
-                
+
             elif np.isnan(NLL):
-                
+
                 passed_min = False
                 done = True
                 
     else:
-        
+
         passed_min = True
 
-                
+ 
     ## Bounded optimization of lambda
     # This is step 2 of the two-step algorithm at the bottom of page 6. Note
     # that Karabatsos made a mistake when describing the indexing relative to
     # k*, which is fixed here (we need to go from k*-2 to k*, not k*-1 to k*+1)
-    
+
     if passed_min:
         L, _, flag, _ = optimize.fminbound(NLL_func, max(0, min_L), max_L, xtol=1e-04, full_output=1, disp=0)
     else:
@@ -351,12 +350,13 @@ def ridge_MML_one_Y(q, d2, n, Y_var, alpha2):
 
 
 def  mint_NLL_func(q, d2, n, Y_var, alpha2):
-    # Mint an anonymous function with L as the only input parameter, with all
-    # the other terms determined by the data.
-    # Equation 19 
-    # We've modified the math here to eliminate the d^2 term from both alpha
-    # (Equation 1, in main function) and here (Equation 19), because they
-    # cancel out and add numerical instability.
+    '''
+    Mint an anonymous function with L as the only input parameter, with all
+    the other terms determined by the data.
+    We've modified the math here to eliminate the d^2 term from both alpha
+    (Equation 1, in main function) and here (Equation 19), because they
+    cancel out and add numerical instability.
+    '''
     NLL_func = lambda L: - (q * np.log(L) - np.sum(np.log(L + d2[:q])) \
                 - n * np.log(Y_var - np.sum( np.divide(alpha2[:q],(L + d2[:q])))))
     return NLL_func
