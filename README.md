@@ -11,7 +11,7 @@ Run instructions:
 3. Change directory to the package folder with `cd regbench`
 4. Create the regbench environment with `conda env create -n regbench --file environment.yml`.
 5. Open pipeline.ipynb
-6. Place the 'demo_model.mat' file into a directory of the structure 'local_disk\animal\SpatialDisc\rec'.
-7. Make sure the parameters at the beginning of the pipeline match the directory structure.
+6. Place the 'demo_model.mat' file into a path of the structure 'local_disk\animal\SpatialDisc\rec'.
+7. Make sure the parameters at the beginning of the pipeline match the path structure.
 8. Run all cells
 
