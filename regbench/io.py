@@ -69,6 +69,7 @@ def load_design(opts):
 
     return design_df
 
+
 def save_results(results, opts):
     '''
     Function to save the results.
@@ -77,10 +78,26 @@ def save_results(results, opts):
     fname = pjoin(rec_path, f'rb_results_{opts["rec_name"]}.npz')
     np.savez(fname, **results)
 
+
+def load_results(requested_objects, opts):
+    '''
+    Function to load the results.
+    '''
+    rec_path = opts['local_disk'] # Path to rec
+    fname = pjoin(rec_path, f'rb_results_{opts["rec_name"]}.npz')
+    if not os.path.isfile(fname):
+        print(f'Cannot find the file at {fname}.')
+        return
+    data = np.load(fname, allow_pickle=True)
+    loaded_objects = []
+    for requested_object in requested_objects:
+        loaded_objects.append(data[requested_object][()])
+    return loaded_objects
+
 def save_fig(fig, opts, name):
     '''
     Function to save a figure.
     '''
     rec_path = opts['local_disk'] # Path to rec
-    fname = pjoin(rec_path, f'{name}.svg')
+    fname = pjoin(rec_path, f'{name}.png')
     fig.savefig(fname)
