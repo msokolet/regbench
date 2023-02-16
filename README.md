@@ -11,7 +11,7 @@ First run only:
 6. Create the regbench environment with `conda env create -n regbench --file environment.yml`.
 7. Open pipeline.ipynb
 8. Activate the regbench environment. In Visual Studio Code, this is done by [pressing select kernel](https://code.visualstudio.com/assets/docs/datascience/jupyter/native-kernel-picker.png) in the top-right corner and then picking 'regbench' from the dropdown menu.
-9. Place the 'demo_model.mat' file into a path of the structure 'local_disk\animal\SpatialDisc\rec'.
+9. Place the recording .mat file into a path of the structure 'local_disk\rec_name'.
 10. Make sure the parameters at the beginning of the pipeline match the path structure.
 11. Run all cells
 
