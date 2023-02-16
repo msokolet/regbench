@@ -89,20 +89,9 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True):
     # This is needed to estimate lambdas, but if recenter = 0, the mean will be
     # restored later for the beta estimation
 
-    if compute_L or recenter:
-        Y_mean = np.mean(Y, 0)
-        Y = np.subtract(Y, Y_mean)
-
     pY = np.size(Y, 1)
 
-    ## Renorm (Z-score)
-
-    X_std = np.std(X, axis=0, ddof=1)
-    X = np.divide(X, X_std)
-
     if compute_L or recenter:
-        X_mean = np.mean(X, 0)
-        X = np.subtract(X, X_mean)
         X[np.isnan(X)] = 0
 
     ## Optimize lambda
@@ -158,45 +147,17 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True):
 
     if regress:
 
-        if not recenter:
-            # Restore the means of X and Y (but don't rescale)
-            if compute_L:
-                Y += Y_mean
-                X -= X_mean
 
-            betas = np.full((p + 1, pY),np.nan)
+        betas = np.full((p, pY), np.nan)
 
-            # Augment X with a column of ones, to allow for a non-zero intercept
-            # (offset). This is what we'll use for regression, without a penalty on
-            # the intercept column.
+        # You would think you could compute X'X more efficiently as VSSV', but
+        # this is numerically unstable and can alter results slightly. Oh well.
+        # XTX = V * bsxfun(@times, V', d2)
 
-            X = np.c_[np.ones(np.size(X,0)), X]
+        XTX = X.T @ X
 
-            XTX = X.T @ X
-
-            # Prep penalty matrix    
-            ep = np.identity(p + 1)
-            ep[0,0] = 0 # No penalty for intercept column
-
-            # For renorming the betas
-            # The 1 is so we don't renorm the intercept column.
-            # Note that the rescaling doesn't alter the intercept.
-            renorm = np.insert(X_std, 0, 1)
-
-        else:
-            betas = np.full((p, pY), np.nan)
-
-            # You would think you could compute X'X more efficiently as VSSV', but
-            # this is numerically unstable and can alter results slightly. Oh well.
-            # XTX = V * bsxfun(@times, V', d2)
-
-            XTX = X.T @ X
-
-            # Prep penalty matrix
-            ep = np.identity(p)
-
-            # For renorming the betas
-            renorm = X_std.T
+        # Prep penalty matrix
+        ep = np.identity(p)
 
 
         # Compute X' * Y all at once, again for speed
@@ -209,8 +170,6 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True):
         else:
             betas = np.linalg.solve(XTX + L * ep, XTY)
 
-        # Adjust betas to account for renorming.
-        betas = np.divide(betas.T, renorm).T
         betas[np.isnan(betas)] = 0
 
 

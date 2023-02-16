@@ -17,7 +17,7 @@ def load_data(opts):
     '''
     Function that loads the data.
     '''
-    rec_path = pjoin(opts['local_disk'], opts['animal'],  'SpatialDisc', opts['rec']) # Path to rec
+    rec_path = opts['local_disk'] # Path to rec
     if opts['dformat'] == 'Python':
         fname = pjoin(rec_path,'SVTcorr.npy')
         if os.path.isfile(fname):
@@ -35,13 +35,11 @@ def load_data(opts):
                 raise OSError(f'Could not find: {fname}')
     elif opts['dformat'] == 'MATLAB':
         # Placeholder - load the Vc output from MATLAB
-        fname = pjoin(rec_path, 'rsVc.mat')
+        fname = pjoin(rec_path, f'{opts["rec_name"]}.mat')
         if os.path.isfile(fname):
-            fname = pjoin(rec_path, 'demo_model.mat')
-            if os.path.isfile(fname):
-                f_des = io.loadmat(fname)
-                u = f_des['U'] # Load aligned spatial components
-                svt = f_des['zeromeanVc'].T # Load adjusted temporal components
+            f_des = io.loadmat(fname)
+            u = f_des['U'] # Load aligned spatial components
+            svt = f_des['zeromeanVc'].T # Load adjusted temporal components
         else:
             raise OSError(f'Could not find: {fname}')
         return SVDStack(u, svt)
@@ -51,8 +49,8 @@ def load_design(opts):
     '''
     Function that loads the design DataFrame - placeholder
     '''
-    rec_path = pjoin(opts['local_disk'], opts['animal'],  'SpatialDisc', opts['rec']) # Path to rec
-    fname = pjoin(rec_path, 'demo_model.mat')
+    rec_path = opts['local_disk'] # Path to rec
+    fname = pjoin(rec_path, f'{opts["rec_name"]}.mat')
     if os.path.isfile(fname):
         f_des = io.loadmat(fname)
         full_r = f_des['R'] # Load design matrix
@@ -75,14 +73,14 @@ def save_results(results, opts):
     '''
     Function to save the results.
     '''
-    rec_path = pjoin(opts['local_disk'], opts['animal'],  'SpatialDisc', opts['rec']) # Path to rec
-    fname = pjoin(rec_path, 'results.npz')
+    rec_path = opts['local_disk'] # Path to rec
+    fname = pjoin(rec_path, f'rb_results_{opts["rec_name"]}.npz')
     np.savez(fname, **results)
 
 def save_fig(fig, opts, name):
     '''
     Function to save a figure.
     '''
-    rec_path = pjoin(opts['local_disk'], opts['animal'],  'SpatialDisc', opts['rec']) # Path to rec
+    rec_path = opts['local_disk'] # Path to rec
     fname = pjoin(rec_path, f'{name}.svg')
     fig.savefig(fname)

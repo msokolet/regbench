@@ -5,7 +5,7 @@ Module containing utility classes and functions.
 import numpy as np
 from scipy.sparse import issparse
 from sklearn.linear_model import Ridge
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.model_selection import cross_val_score
 
 
 class SVDStack(object):
@@ -157,13 +157,22 @@ def split_by_trials(data, opts):
     trial_idx = rng.permutation(int(len(data.svt) / opts['frames_per_trial']))
     frame_idx = np.arange(len(data))
     frame_idx = frame_idx.reshape(-1, opts['frames_per_trial'])
-    frame_idx = frame_idx[trial_idx, :].ravel()
+    frame_idx = frame_idx[trial_idx, :].flatten()
+    outer_size = int(np.floor(len(data)/opts['out_folds']))
+    inner_size = int(np.floor((len(data)-outer_size)/opts['in_folds']))
 
-    out_kf = KFold(n_splits=opts['out_folds'])
-    in_kf = KFold(n_splits=opts['in_folds'])
-
-    out_split = list(out_kf.split(frame_idx))
-    in_split = list(in_kf.split(out_split[0][1]))
+    out_split = []
+    in_split = []
+    for out_fold in range(opts['out_folds']):
+        test_idx = frame_idx[out_fold*outer_size:(out_fold+1)*outer_size]
+        train_idx = np.append(frame_idx[:out_fold*outer_size], frame_idx[(out_fold+1)*outer_size:])
+        out_split.append((train_idx, test_idx))
+        if out_fold == 0:
+            for in_fold in range(opts['in_folds']):
+                frames_range = np.arange(len(data)-outer_size)
+                test_idx = frames_range[in_fold*inner_size:(in_fold+1)*inner_size]
+                train_idx = np.append(frames_range[:in_fold*inner_size], frames_range[(in_fold+1)*inner_size:])
+                in_split.append((train_idx, test_idx))
 
     return out_split, in_split
 
