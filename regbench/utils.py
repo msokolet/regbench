@@ -4,6 +4,7 @@ Module containing utility classes and functions.
 
 import numpy as np
 from scipy.sparse import issparse
+from sklearn.metrics import make_scorer
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import cross_val_score
 
@@ -35,7 +36,7 @@ class SVDStack(object):
         return self.svt.shape[0]
 
 
-def model_corr(r_stack, m_svt):
+def model_corr(data, m_svt):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
@@ -46,11 +47,11 @@ def model_corr(r_stack, m_svt):
     Adapted to Python by Michael Sokoletsky, 2021
     '''
 
-    Vc = r_stack.svt.T
+    Vc = data.svt.T
     Vm = m_svt.T
 
-    if len(np.shape(r_stack.u)) == 3:
-        u = array_shrink(r_stack.u, r_stack.mask)
+    if len(np.shape(data.u)) == 3:
+        u = array_shrink(data.u, data.mask)
 
     cov_Vc = np.cov(Vc)  # S x S
     cov_Vm = np.cov(Vm)  # % S x S
@@ -61,7 +62,7 @@ def model_corr(r_stack, m_svt):
     var_P2 = np.expand_dims(np.sum((u @ cov_Vm) * u, 1), axis=0)  # 1 x P
     std_Px_Py = var_P1 ** 0.5 * var_P2 ** 0.5  # 1 x P
     corr_mat = (cov_P / std_Px_Py).T
-    corr_mat = array_shrink(corr_mat, r_stack.mask, 'split') ** 2
+    corr_mat = array_shrink(corr_mat, data.mask, 'split') ** 2
 
     return corr_mat
 
@@ -130,10 +131,37 @@ def array_shrink(data_in, mask, mode='merge'):
 
     return data_out
 
+def mint_calc_score(data):
+    '''
+    This function calculates the loadings once so that the calc_score does not have to do so repeatedly.
+    '''
+    loadings = np.linalg.norm(data.svt, axis=0)**2
+
+    def calc_score(y_true, y_pred):
+        '''
+        This function returns an R2 score based on the loadings of each component.
+        '''
+        numerator = ((y_true - y_pred) ** 2).sum(axis=0, dtype=np.float64)
+        denominator = (
+            (y_true - np.mean(y_true, axis=0)) ** 2
+        ).sum(axis=0, dtype=np.float64)
+        nonzero_denominator = denominator != 0
+        nonzero_numerator = numerator != 0
+        valid_score = nonzero_denominator & nonzero_numerator
+        output_scores = np.ones([y_true.shape[1]])
+        output_scores[valid_score] = 1 - (numerator[valid_score] / denominator[valid_score])
+        # arbitrary set to zero to avoid -inf scores, having a constant
+        # y_true is not interesting for scoring a regression anyway
+        output_scores[nonzero_numerator & ~nonzero_denominator] = 0.0
+
+        return np.average(output_scores, weights=loadings)
+    
+    return calc_score
+
 
 def mint_score_func(design_df, data, cv=5, scoring='r2', n_jobs=-1):
     '''
-    This function returns a function which calculates the negative R2 score of a ridge model, 
+    This function returns a function which calculates the negative weighted R2 score of a ridge model, 
     with the value of alpha being the only parameter. Used in conjungtion with fminbound.
     '''
     def score_func(alpha):
