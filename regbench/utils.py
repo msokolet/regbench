@@ -141,6 +141,7 @@ def mint_calc_score(data):
         '''
         This function returns an R2 score based on the loadings of each component.
         '''
+
         numerator = ((y_true - y_pred) ** 2).sum(axis=0, dtype=np.float64)
         denominator = (
             (y_true - np.mean(y_true, axis=0)) ** 2
@@ -155,7 +156,7 @@ def mint_calc_score(data):
         output_scores[nonzero_numerator & ~nonzero_denominator] = 0.0
 
         return np.average(output_scores, weights=loadings)
-    
+
     return calc_score
 
 
@@ -186,21 +187,28 @@ def split_by_trials(data, opts):
     frame_idx = np.arange(len(data))
     frame_idx = frame_idx.reshape(-1, opts['frames_per_trial'])
     frame_idx = frame_idx[trial_idx, :].flatten()
-    outer_size = int(np.floor(len(data)/opts['out_folds']))
-    inner_size = int(np.floor((len(data)-outer_size)/opts['in_folds']))
-
+    out_sizes = np.full(opts['out_folds'], len(data) // opts['out_folds'], dtype=int)
+    out_sizes[: len(data) % opts['out_folds']] += 1
+    in_sizes = np.full(opts['in_folds'], (len(data) - out_sizes[0]) // opts['in_folds'], dtype=int)
+    in_sizes[: (len(data) - out_sizes[0]) % opts['in_folds']] += 1
     out_split = []
     in_split = []
-    for out_fold in range(opts['out_folds']):
-        test_idx = frame_idx[out_fold*outer_size:(out_fold+1)*outer_size]
-        train_idx = np.append(frame_idx[:out_fold*outer_size], frame_idx[(out_fold+1)*outer_size:])
+    out_current = 0
+    for out_fold, out_size in enumerate(out_sizes):
+        start, stop = out_current, out_current + out_size
+        test_idx = frame_idx[start:stop]
+        train_idx = np.append(frame_idx[:start], frame_idx[stop:])
         out_split.append((train_idx, test_idx))
+        out_current = stop
         if out_fold == 0:
-            for in_fold in range(opts['in_folds']):
-                frames_range = np.arange(len(data)-outer_size)
-                test_idx = frames_range[in_fold*inner_size:(in_fold+1)*inner_size]
-                train_idx = np.append(frames_range[:in_fold*inner_size], frames_range[(in_fold+1)*inner_size:])
+            frames_range = np.arange(len(data)-out_sizes[0])
+            in_current = 0
+            for in_size in in_sizes:
+                start, stop = in_current, in_current + in_size
+                test_idx = frames_range[start:stop]
+                train_idx = np.append(frames_range[:start], frames_range[stop:])
                 in_split.append((train_idx, test_idx))
+                in_current = stop
 
     return out_split, in_split
 
