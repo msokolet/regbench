@@ -11,13 +11,13 @@ import numpy as np
 from scipy import io
 import pandas as pd
 
-from .utils import SVDStack
+from .utils import SVDStack, listify
 
 def load_data(opts):
     '''
     Function that loads the data.
     '''
-    rec_path = opts['local_disk'] # Path to rec
+    rec_path = opts['dir'] # Path to rec
     if opts['dformat'] == 'Python':
         fname = pjoin(rec_path,'SVTcorr.npy')
         if os.path.isfile(fname):
@@ -49,7 +49,7 @@ def load_design(opts):
     '''
     Function that loads the design DataFrame - placeholder
     '''
-    rec_path = opts['local_disk'] # Path to rec
+    rec_path = opts['dir'] # Path to rec
     fname = pjoin(rec_path, f'{opts["rec_name"]}.mat')
     if os.path.isfile(fname):
         f_des = io.loadmat(fname)
@@ -74,7 +74,7 @@ def save_results(results, opts):
     '''
     Function to save the results.
     '''
-    rec_path = opts['local_disk'] # Path to rec
+    rec_path = opts['dir'] # Path to rec
     fname = pjoin(rec_path, f'rb_results_{opts["rec_name"]}.npz')
     np.savez(fname, **results)
 
@@ -83,21 +83,24 @@ def load_results(requested_objects, opts):
     '''
     Function to load the results.
     '''
-    rec_path = opts['local_disk'] # Path to rec
+    rec_path = opts['dir'] # Path to rec
     fname = pjoin(rec_path, f'rb_results_{opts["rec_name"]}.npz')
     if not os.path.isfile(fname):
         print(f'Cannot find the file at {fname}.')
         return
     data = np.load(fname, allow_pickle=True)
     loaded_objects = []
+    requested_objects = listify(requested_objects)
     for requested_object in requested_objects:
         loaded_objects.append(data[requested_object][()])
     return loaded_objects
+
+
 
 def save_fig(fig, opts, name):
     '''
     Function to save a figure.
     '''
-    rec_path = opts['local_disk'] # Path to rec
+    rec_path = opts['dir'] # Path to rec
     fname = pjoin(rec_path, f'{name}.png')
     fig.savefig(fname)

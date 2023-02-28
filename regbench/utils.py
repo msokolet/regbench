@@ -23,11 +23,11 @@ class SVDStack(object):
             if dims is None:
                 raise ValueError(
                     'Supply dims = [H,W] when using sparse arrays')
-            self.Uflat = self.u
+            self.u_flat = self.u
         else:
             if dims is None:
                 dims = u.shape[:2]
-            self.Uflat = self.u.reshape(-1, self.u.shape[-1])
+            self.u_flat = self.u.reshape(-1, self.u.shape[-1])
         self.shape = [svt.shape[1], *dims]
         self.dtype = dtype
         self.mask = np.isnan(u[:, :, 0])  # create the mask
@@ -141,7 +141,6 @@ def mint_calc_score(data):
         '''
         This function returns an R2 score based on the loadings of each component.
         '''
-
         numerator = ((y_true - y_pred) ** 2).sum(axis=0, dtype=np.float64)
         denominator = (
             (y_true - np.mean(y_true, axis=0)) ** 2
@@ -221,3 +220,8 @@ def unstack(df):
     new_cols = df.index.get_level_values(0).unique()
 
     return df.unstack(0).reindex(new_index).reindex(new_cols, level=-1, axis='columns')
+
+
+def listify(object_):
+    object_ = [object_] if not isinstance(object_, list) else object_ # turn string object into a list if it isn't already one
+    return object_
