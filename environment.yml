@@ -9,4 +9,5 @@ dependencies:
   - pandas
   - seaborn
   - tqdm
+  - scikit-learn
 prefix: C:\Users\michaeso.WISMAIN\Anaconda3\envs\regbench
