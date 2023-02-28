@@ -232,7 +232,7 @@ def ridge_MML_one_Y(q, d2, n, Y_var, alpha2):
 
       # Compute negative log likelihood of the data for this value of lambda
         NLL = NLL_func(k / 4)
-        
+
       # Add to smoothing buffer
         sm_buffer[int(sm_buffer_I-1)] = NLL
         test_vals_L[int(sm_buffer_I-1)] = k / 4
@@ -266,8 +266,6 @@ def ridge_MML_one_Y(q, d2, n, Y_var, alpha2):
             # Compute negative log likelihood of the data for this value of lambda,
             # overwrite oldest value in the smoothing buffer
             sm_buffer[int(sm_buffer_I-1)] = NLL_func(L)
-            if (L + d2[:q]) == 0:
-                pass
             test_vals_L[int(sm_buffer_I-1)] = L
             NLL = np.mean(sm_buffer)
             
