@@ -8,11 +8,11 @@ First run only:
 3. Download or clone this package.
 4. Open Anaconda Prompt.
 5. Change directory to the package folder with `cd regbench`
-6. Create the regbench environment with `conda env create -n regbench --file environment.yml`.
+6. Create the regbench environment with `conda env create -n regbench --file environment.yml`
 7. Open pipeline.ipynb
 8. Activate the regbench environment. In Visual Studio Code, this is done by [pressing select kernel](https://code.visualstudio.com/assets/docs/datascience/jupyter/native-kernel-picker.png) in the top-right corner and then picking 'regbench' from the dropdown menu.
-9. Place the recording .mat file into a path of the structure 'local_disk\rec_name'.
-10. Make sure the parameters at the beginning of the pipeline match the path structure.
+9. Download the recording .mat.
+10. Make sure the parameters at the beginning of the pipeline match the directory and name of the recording .mat.
 11. Run all cells
 
 Subsequent runs:
