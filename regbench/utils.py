@@ -4,9 +4,9 @@ Module containing utility classes and functions.
 
 import numpy as np
 from scipy.sparse import issparse
-from sklearn.metrics import make_scorer
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import cross_val_score
+from sklearn.metrics import r2_score
 
 
 class SVDStack(object):
@@ -18,6 +18,7 @@ class SVDStack(object):
         self.u = u.astype('float32')
         self.svt = svt.astype('float32')
         self.issparse = False
+        self.mask = np.isnan(u[:, :, 0])  # create the mask
         if issparse(u):
             self.issparse = True
             if dims is None:
@@ -27,16 +28,15 @@ class SVDStack(object):
         else:
             if dims is None:
                 dims = u.shape[:2]
-            self.u_flat = self.u.reshape(-1, self.u.shape[-1])
+            self.u_flat = array_shrink(u, self.mask)
         self.shape = [svt.shape[1], *dims]
         self.dtype = dtype
-        self.mask = np.isnan(u[:, :, 0])  # create the mask
 
     def __len__(self):
         return self.svt.shape[0]
 
 
-def model_corr(data, m_svt):
+def model_corr(data, m_svt, opts):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
@@ -47,25 +47,36 @@ def model_corr(data, m_svt):
     Adapted to Python by Michael Sokoletsky, 2021
     '''
 
-    Vc = data.svt.T
-    Vm = m_svt.T
-
-    if len(np.shape(data.u)) == 3:
-        u = array_shrink(data.u, data.mask)
-
-    cov_Vc = np.cov(Vc)  # S x S
-    cov_Vm = np.cov(Vm)  # % S x S
-    c_cov_V = (Vm - np.expand_dims(np.mean(Vm, 1), axis=1)
-               ) @ Vc.T / (np.size(Vc, 1) - 1)  # S x S
-    cov_P = np.expand_dims(np.sum((u @ c_cov_V) * u, 1), axis=0)  # 1 x P
-    var_P1 = np.expand_dims(np.sum((u @ cov_Vc) * u, 1), axis=0)  # 1 x Pii
-    var_P2 = np.expand_dims(np.sum((u @ cov_Vm) * u, 1), axis=0)  # 1 x P
-    std_Px_Py = var_P1 ** 0.5 * var_P2 ** 0.5  # 1 x P
-    corr_mat = (cov_P / std_Px_Py).T
-    corr_mat = array_shrink(corr_mat, data.mask, 'split') ** 2
-
+    if opts['map_met'] == 'r2':
+        Vc = data.svt.T
+        Vm = m_svt.T
+        cov_Vc = np.cov(Vc)  # S x S
+        cov_Vm = np.cov(Vm)  # % S x S
+        c_cov_V = (Vm - np.expand_dims(np.mean(Vm, 1), axis=1)
+                ) @ Vc.T / (np.size(Vc, 1) - 1)  # S x S
+        cov_P = np.expand_dims(np.sum((data.u_flat @ c_cov_V) * data.u_flat, 1), axis=0)  # 1 x P
+        var_P1 = np.expand_dims(np.sum((data.u_flat @ cov_Vc) * data.u_flat, 1), axis=0)  # 1 x Pii
+        var_P2 = np.expand_dims(np.sum((data.u_flat @ cov_Vm) * data.u_flat, 1), axis=0)  # 1 x P
+        std_Px_Py = var_P1 ** 0.5 * var_P2 ** 0.5  # 1 x P
+        corr_mat = (cov_P / std_Px_Py).T
+        corr_mat = array_shrink(corr_mat, data.mask, 'split') ** 2
+    elif opts['map_met'] == 'R2':
+        if opts['sample_trials'] > 0:
+            rng = np.random.default_rng(seed=4)
+            trial_idx = rng.permutation(int(len(data) / opts['frames_per_trial']))
+            frame_idx = np.arange(len(data))
+            frame_idx = frame_idx.reshape(-1, opts['frames_per_trial'])
+            trials = trial_idx[:opts['sample_trials']]
+            frame_idx = frame_idx[trials, :].flatten()
+            real_act = data.svt[frame_idx, :] @ data.u_flat.T
+            model_act = m_svt[frame_idx, :] @ data.u_flat.T
+        else:
+            real_act = data.svt @ data.u_flat.T
+            model_act = m_svt @ data.u_flat.T
+        scores = r2_score(real_act, model_act, multioutput='raw_values')
+        corr_mat = array_shrink(scores, data.mask, 'split')
+        
     return corr_mat
-
 
 def array_shrink(data_in, mask, mode='merge'):
     '''
@@ -141,6 +152,7 @@ def mint_calc_score(data):
         '''
         This function returns an R2 score based on the loadings of each component.
         '''
+        
         numerator = ((y_true - y_pred) ** 2).sum(axis=0, dtype=np.float64)
         denominator = (
             (y_true - np.mean(y_true, axis=0)) ** 2
@@ -182,7 +194,7 @@ def split_by_trials(data, opts):
     Based on Max Melin's ridge-model-matlab-baseline package.
     '''
     rng = np.random.default_rng(seed=4)
-    trial_idx = rng.permutation(int(len(data.svt) / opts['frames_per_trial']))
+    trial_idx = rng.permutation(int(len(data) / opts['frames_per_trial']))
     frame_idx = np.arange(len(data))
     frame_idx = frame_idx.reshape(-1, opts['frames_per_trial'])
     frame_idx = frame_idx[trial_idx, :].flatten()
