@@ -5,7 +5,7 @@ Docstring
 import numpy as np
 from scipy import optimize
 
-def ridge_MML(Y, X, recenter = True, L = None, regress = True):
+def ridge_MML(Y, X, adjust_betas = False, recenter = True, L = None, regress = True):
     """
     This is an implementation of Ridge regression with the Ridge parameter
     lambda determined using the fast algorithm of Karabatsos 2017 (see
@@ -21,19 +21,6 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True):
     betas (the regression coefficients, again with columns corresponding to
     columns of Y); and a vector of logicals telling you whether fminbnd
     failed to converge for each column of y (this happens frequently).
-
-    If recenter is True (default), the columns of X and Y will be recentered at
-    0. betas will be of size:  np.size(X, 1) x np.size(Y, 1)
-    To reconstruct the recentered Y, use:
-    y_recentered_hat = (X - np.mean(X, 0)) * betas
-
-    If recenter is False, the columns of X and Y will not be recentered. betas
-    will be of size:  size(X, 2)+1 x size(Y, 2)
-    The first row corresponds to the intercept term.
-    To reconstruct Y, you may therefore use either:
-    y_hat = [np.ones((np.size(X, 0), 1)), X] * betas
-    or
-    y_hat = X * betas[1:, :] + betas[0, :]
 
     If lambdas is supplied, the optimization step is skipped and the betas
     are computed immediately. This obviously speeds things up a lot.
@@ -86,13 +73,20 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True):
         raise IndexError('Size mismatch')
 
     ## Ensure Y is zero-mean
-    # This is needed to estimate lambdas, but if recenter = 0, the mean will be
-    # restored later for the beta estimation
 
     pY = np.size(Y, 1)
 
-    if compute_L or recenter:
-        X[np.isnan(X)] = 0
+    X[np.isnan(X)] = 0
+
+
+    ## Renorm (Z-score)
+    X_std = np.std(X, axis=0, ddof=1)
+    X = np.divide(X, X_std)
+    
+    if compute_L:
+        X_mean = np.mean(X, 0)
+        X = np.subtract(X, X_mean)
+
 
     ## Optimize lambda
 
@@ -146,20 +140,43 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True):
     # If requested, perform the actual regression
 
     if regress:
+        if not recenter:
+            betas = np.full((p + 1, pY),np.nan)
 
+            # Augment X with a column of ones, to allow for a non-zero intercept
+            # (offset). This is what we'll use for regression, without a penalty on
+            # the intercept column.
 
-        betas = np.full((p, pY), np.nan)
+            X = np.c_[np.ones(np.size(X,0)), X]
 
-        # You would think you could compute X'X more efficiently as VSSV', but
-        # this is numerically unstable and can alter results slightly. Oh well.
-        # XTX = V * bsxfun(@times, V', d2)
+            XTX = X.T @ X
 
-        XTX = X.T @ X
+            # Prep penalty matrix    
+            ep = np.identity(p + 1)
+            ep[0,0] = 0 # No penalty for intercept column
 
-        # Prep penalty matrix
-        ep = np.identity(p)
+            # For renorming the betas
+            # The 1 is so we don't renorm the intercept column.
+            # Note that the rescaling doesn't alter the intercept.
+            if adjust_betas:
+                renorm = np.insert(X_std, 0, 1)
 
+        else:
+            betas = np.full((p, pY), np.nan)
 
+            # You would think you could compute X'X more efficiently as VSSV', but
+            # this is numerically unstable and can alter results slightly. Oh well.
+            # XTX = V * bsxfun(@times, V', d2)
+
+            XTX = X.T @ X
+
+            # Prep penalty matrix
+            ep = np.identity(p)
+
+            if adjust_betas:
+                # For renorming the betas
+                renorm = X_std.T
+            
         # Compute X' * Y all at once, again for speed
         XTY = X.T @ Y
 
@@ -169,6 +186,10 @@ def ridge_MML(Y, X, recenter = True, L = None, regress = True):
                 betas[:, i] = np.linalg.solve(XTX + L[i] * ep, XTY[:, i])
         else:
             betas = np.linalg.solve(XTX + L * ep, XTY)
+                
+        if adjust_betas:
+            # Adjust betas to account for renorming.
+            betas = np.divide(betas.T, renorm).T
 
         betas[np.isnan(betas)] = 0
 

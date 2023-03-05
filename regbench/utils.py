@@ -36,7 +36,7 @@ class SVDStack(object):
         return self.svt.shape[0]
 
 
-def model_corr(data, m_svt, opts):
+def model_corr(data, m_svt, opts, frame_idx):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
@@ -48,8 +48,12 @@ def model_corr(data, m_svt, opts):
     '''
 
     if opts['map_met'] == 'r2':
-        Vc = data.svt.T
-        Vm = m_svt.T
+        if opts['sample_trials'] > 0:
+            Vc = data.svt[frame_idx, :].T
+            Vm = m_svt[frame_idx, :].T
+        else:
+            Vc = data.svt.T
+            Vm = m_svt.T
         cov_Vc = np.cov(Vc)  # S x S
         cov_Vm = np.cov(Vm)  # % S x S
         c_cov_V = (Vm - np.expand_dims(np.mean(Vm, 1), axis=1)
@@ -62,12 +66,6 @@ def model_corr(data, m_svt, opts):
         corr_mat = array_shrink(corr_mat, data.mask, 'split') ** 2
     elif opts['map_met'] == 'R2':
         if opts['sample_trials'] > 0:
-            rng = np.random.default_rng(seed=4)
-            trial_idx = rng.permutation(int(len(data) / opts['frames_per_trial']))
-            frame_idx = np.arange(len(data))
-            frame_idx = frame_idx.reshape(-1, opts['frames_per_trial'])
-            trials = trial_idx[:opts['sample_trials']]
-            frame_idx = frame_idx[trials, :].flatten()
             real_act = data.svt[frame_idx, :] @ data.u_flat.T
             model_act = m_svt[frame_idx, :] @ data.u_flat.T
         else:
