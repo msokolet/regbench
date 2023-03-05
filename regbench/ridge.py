@@ -78,12 +78,13 @@ def ridge_MML(Y, X, adjust_betas = False, recenter = True, L = None, regress = T
 
     X[np.isnan(X)] = 0
 
-
-    ## Renorm (Z-score)
-    X_std = np.std(X, axis=0, ddof=1)
-    X = np.divide(X, X_std)
+    ## Renorm (Z-score) if adjusting betas (and if input to this function was not renormed already)
+    if adjust_betas:
+        X_std = np.std(X, axis=0, ddof=1)
+        X = np.divide(X, X_std)
     
-    if compute_L:
+    # Recenter if not already done and computing L
+    if not recenter and compute_L:
         X_mean = np.mean(X, 0)
         X = np.subtract(X, X_mean)
 
