@@ -36,7 +36,7 @@ class SVDStack(object):
         return self.svt.shape[0]
 
 
-def model_corr(data, m_svt, opts, frame_idx):
+def vis_score(data, m_svt, opts, frame_idx):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
