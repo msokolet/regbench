@@ -7,7 +7,8 @@ from scipy.sparse import issparse
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import r2_score
-
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
 
 class SVDStack(object):
     '''
@@ -36,7 +37,7 @@ class SVDStack(object):
         return self.svt.shape[0]
 
 
-def vis_score(data, m_svt, opts, frame_idx):
+def vis_score(data, m_svt, opts, frame_idx, dtype='float32'):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
@@ -54,8 +55,8 @@ def vis_score(data, m_svt, opts, frame_idx):
         else:
             Vc = data.svt.T
             Vm = m_svt.T
-        cov_Vc = np.cov(Vc)  # S x S
-        cov_Vm = np.cov(Vm)  # % S x S
+        cov_Vc = np.cov(Vc, dtype=dtype)  # S x S
+        cov_Vm = np.cov(Vm, dtype=dtype)  # % S x S
         c_cov_V = (Vm - np.expand_dims(np.mean(Vm, 1), axis=1)
                 ) @ Vc.T / (np.size(Vc, 1) - 1)  # S x S
         cov_P = np.expand_dims(np.sum((data.u_flat @ c_cov_V) * data.u_flat, 1), axis=0)  # 1 x P
@@ -74,6 +75,35 @@ def vis_score(data, m_svt, opts, frame_idx):
         scores = r2_score(real_act, model_act, multioutput='raw_values')
         corr_mat = array_shrink(scores, data.mask, 'split')
         
+    return corr_mat
+
+
+def new_vis_score(data, m_svt, opts, frame_idx):
+    '''
+    Short code to compute the correlation between lowD data Vc and modeled
+    lowD data Vm. Vc and Vm are temporal components, u is the spatial
+    components. corr_mat is a the correlation between Vc and Vm in each pixel.
+
+    Originally written in MATLAB by Simon Musall, 2019
+
+    Adapted to Python by Michael Sokoletsky, 2021
+    '''
+    if opts['sample_trials'] > 0:
+        y_true = data.svt[frame_idx, :]
+        y_pred = m_svt[frame_idx, :]
+    else:
+        y_true = data.svt
+        y_pred = m_svt
+    y_true_centered = y_true - np.mean(y_true, axis=0)
+    y_pred_centered = y_pred - np.mean(y_pred, axis=0)
+    # compute covariances
+    cov_true_pred = np.einsum('ij,kj,kp,ip->i', data.u_flat, y_true_centered, y_pred_centered, data.u_flat, optimize="greedy")
+    cov_true = np.einsum('ij,kj,kp,ip->i', data.u_flat, y_true_centered, y_true_centered, data.u_flat, optimize="greedy")
+    cov_pred = np.einsum('ij,kj,kp,ip->i', data.u_flat, y_pred_centered, y_pred_centered, data.u_flat, optimize="greedy")
+    # output r2 map
+    scores = cov_true_pred ** 2 / (cov_true * cov_pred)
+    corr_mat = array_shrink(scores, data.mask, 'split')
+
     return corr_mat
 
 def array_shrink(data_in, mask, mode='merge'):
@@ -178,8 +208,10 @@ def mint_score_func(design_df, data, cv=5, scoring='r2', n_jobs=-1):
         '''
         Score function
         '''
+
         mdl = Ridge(alpha=alpha)
-        scores = cross_val_score(mdl, design_df, data,
+        pipeline = make_pipeline(StandardScaler(), mdl)
+        scores = cross_val_score(pipeline, design_df, data,
                                  cv=cv, scoring=scoring, n_jobs=n_jobs)
         return -np.mean(scores)
 
