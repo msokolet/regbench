@@ -37,7 +37,7 @@ class SVDStack(object):
         return self.svt.shape[0]
 
 
-def vis_score(data, m_svt, opts, frame_idx, dtype='float32'):
+def vis_score(data, m_svt, opts, dtype='float32'):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
@@ -48,37 +48,23 @@ def vis_score(data, m_svt, opts, frame_idx, dtype='float32'):
     Adapted to Python by Michael Sokoletsky, 2021
     '''
 
-    if opts['map_met'] == 'r2':
-        if opts['sample_trials'] > 0:
-            Vc = data.svt[frame_idx, :].T
-            Vm = m_svt[frame_idx, :].T
-        else:
-            Vc = data.svt.T
-            Vm = m_svt.T
-        cov_Vc = np.cov(Vc, dtype=dtype)  # S x S
-        cov_Vm = np.cov(Vm, dtype=dtype)  # % S x S
-        c_cov_V = (Vm - np.expand_dims(np.mean(Vm, 1), axis=1)
-                ) @ Vc.T / (np.size(Vc, 1) - 1)  # S x S
-        cov_P = np.expand_dims(np.sum((data.u_flat @ c_cov_V) * data.u_flat, 1), axis=0)  # 1 x P
-        var_P1 = np.expand_dims(np.sum((data.u_flat @ cov_Vc) * data.u_flat, 1), axis=0)  # 1 x Pii
-        var_P2 = np.expand_dims(np.sum((data.u_flat @ cov_Vm) * data.u_flat, 1), axis=0)  # 1 x P
-        std_Px_Py = var_P1 ** 0.5 * var_P2 ** 0.5  # 1 x P
-        corr_mat = (cov_P / std_Px_Py).T
-        corr_mat = array_shrink(corr_mat, data.mask, 'split') ** 2
-    elif opts['map_met'] == 'R2':
-        if opts['sample_trials'] > 0:
-            real_act = data.svt[frame_idx, :] @ data.u_flat.T
-            model_act = m_svt[frame_idx, :] @ data.u_flat.T
-        else:
-            real_act = data.svt @ data.u_flat.T
-            model_act = m_svt @ data.u_flat.T
-        scores = r2_score(real_act, model_act, multioutput='raw_values')
-        corr_mat = array_shrink(scores, data.mask, 'split')
-        
+    Vc = data.svt.T
+    Vm = m_svt.T
+    cov_Vc = np.cov(Vc, dtype=dtype)  # S x S
+    cov_Vm = np.cov(Vm, dtype=dtype)  # % S x S
+    c_cov_V = (Vm - np.expand_dims(np.mean(Vm, 1), axis=1)
+            ) @ Vc.T / (np.size(Vc, 1) - 1)  # S x S
+    cov_P = np.expand_dims(np.sum((data.u_flat @ c_cov_V) * data.u_flat, 1), axis=0)  # 1 x P
+    var_P1 = np.expand_dims(np.sum((data.u_flat @ cov_Vc) * data.u_flat, 1), axis=0)  # 1 x Pii
+    var_P2 = np.expand_dims(np.sum((data.u_flat @ cov_Vm) * data.u_flat, 1), axis=0)  # 1 x P
+    std_Px_Py = var_P1 ** 0.5 * var_P2 ** 0.5  # 1 x P
+    corr_mat = (cov_P / std_Px_Py).T
+    corr_mat = array_shrink(corr_mat, data.mask, 'split') ** 2
+
     return corr_mat
 
 
-def new_vis_score(data, m_svt, opts, frame_idx):
+def new_vis_score(data, m_svt, opts):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
@@ -88,12 +74,9 @@ def new_vis_score(data, m_svt, opts, frame_idx):
 
     Adapted to Python by Michael Sokoletsky, 2021
     '''
-    if opts['sample_trials'] > 0:
-        y_true = data.svt[frame_idx, :]
-        y_pred = m_svt[frame_idx, :]
-    else:
-        y_true = data.svt
-        y_pred = m_svt
+
+    y_true = data.svt
+    y_pred = m_svt
     y_true_centered = y_true - np.mean(y_true, axis=0)
     y_pred_centered = y_pred - np.mean(y_pred, axis=0)
     # compute covariances
