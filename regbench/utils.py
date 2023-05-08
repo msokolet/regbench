@@ -10,34 +10,7 @@ from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
-class SVDStack(object):
-    '''
-    This class created the image stack for widefield imaging data.
-    '''
-
-    def __init__(self, u, svt, dims=None, dtype='float32'):
-        self.u = u.astype('float32')
-        self.svt = svt.astype('float32')
-        self.issparse = False
-        self.mask = np.isnan(u[:, :, 0])  # create the mask
-        if issparse(u):
-            self.issparse = True
-            if dims is None:
-                raise ValueError(
-                    'Supply dims = [H,W] when using sparse arrays')
-            self.u_flat = self.u
-        else:
-            if dims is None:
-                dims = u.shape[:2]
-            self.u_flat = array_shrink(u, self.mask)
-        self.shape = [svt.shape[1], *dims]
-        self.dtype = dtype
-
-    def __len__(self):
-        return self.svt.shape[0]
-
-
-def vis_score(data, m_svt, opts, dtype='float32'):
+def vis_score(data, u, model, opts, dtype='float32'):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
@@ -48,23 +21,25 @@ def vis_score(data, m_svt, opts, dtype='float32'):
     Adapted to Python by Michael Sokoletsky, 2021
     '''
 
-    Vc = data.svt.T
-    Vm = m_svt.T
+    Vc = data.T
+    Vm = model.T
+    mask = np.isnan(u[:, :, 0])  # create the mask
+    u_flat = array_shrink(u, mask) # flatten u
     cov_Vc = np.cov(Vc, dtype=dtype)  # S x S
     cov_Vm = np.cov(Vm, dtype=dtype)  # % S x S
     c_cov_V = (Vm - np.expand_dims(np.mean(Vm, 1), axis=1)
             ) @ Vc.T / (np.size(Vc, 1) - 1)  # S x S
-    cov_P = np.expand_dims(np.sum((data.u_flat @ c_cov_V) * data.u_flat, 1), axis=0)  # 1 x P
-    var_P1 = np.expand_dims(np.sum((data.u_flat @ cov_Vc) * data.u_flat, 1), axis=0)  # 1 x Pii
-    var_P2 = np.expand_dims(np.sum((data.u_flat @ cov_Vm) * data.u_flat, 1), axis=0)  # 1 x P
+    cov_P = np.expand_dims(np.sum((u_flat @ c_cov_V) * u_flat, 1), axis=0)  # 1 x P
+    var_P1 = np.expand_dims(np.sum((u_flat @ cov_Vc) * u_flat, 1), axis=0)  # 1 x Pii
+    var_P2 = np.expand_dims(np.sum((u_flat @ cov_Vm) * u_flat, 1), axis=0)  # 1 x P
     std_Px_Py = var_P1 ** 0.5 * var_P2 ** 0.5  # 1 x P
     corr_mat = (cov_P / std_Px_Py).T
-    corr_mat = array_shrink(corr_mat, data.mask, 'split') ** 2
+    corr_mat = array_shrink(corr_mat, mask, 'split') ** 2
 
     return corr_mat
 
 
-def new_vis_score(data, m_svt, opts):
+def new_vis_score(data, u, model, opts):
     '''
     Short code to compute the correlation between lowD data Vc and modeled
     lowD data Vm. Vc and Vm are temporal components, u is the spatial
@@ -75,17 +50,19 @@ def new_vis_score(data, m_svt, opts):
     Adapted to Python by Michael Sokoletsky, 2021
     '''
 
-    y_true = data.svt
-    y_pred = m_svt
+    y_true = data
+    y_pred = model
+    mask = np.isnan(u[:, :, 0])  # create the mask
+    u_flat = array_shrink(u, mask) # flatten u
     y_true_centered = y_true - np.mean(y_true, axis=0)
     y_pred_centered = y_pred - np.mean(y_pred, axis=0)
     # compute covariances
-    cov_true_pred = np.einsum('ij,kj,kp,ip->i', data.u_flat, y_true_centered, y_pred_centered, data.u_flat, optimize="greedy")
-    cov_true = np.einsum('ij,kj,kp,ip->i', data.u_flat, y_true_centered, y_true_centered, data.u_flat, optimize="greedy")
-    cov_pred = np.einsum('ij,kj,kp,ip->i', data.u_flat, y_pred_centered, y_pred_centered, data.u_flat, optimize="greedy")
+    cov_true_pred = np.einsum('ij,kj,kp,ip->i', u_flat, y_true_centered, y_pred_centered, u_flat, optimize="greedy")
+    cov_true = np.einsum('ij,kj,kp,ip->i', u_flat, y_true_centered, y_true_centered, u_flat, optimize="greedy")
+    cov_pred = np.einsum('ij,kj,kp,ip->i', u_flat, y_pred_centered, y_pred_centered, u_flat, optimize="greedy")
     # output r2 map
     scores = cov_true_pred ** 2 / (cov_true * cov_pred)
-    corr_mat = array_shrink(scores, data.mask, 'split')
+    corr_mat = array_shrink(scores, mask, 'split')
 
     return corr_mat
 
@@ -153,17 +130,18 @@ def array_shrink(data_in, mask, mode='merge'):
 
     return data_out
 
-def mint_calc_score(data):
+def mint_calc_score(data, opts):
     '''
-    This function calculates the loadings once so that the calc_score does not have to do so repeatedly.
+    This function calculates the loadings once for widefield data so that the calc_score does not have to do so repeatedly.
     '''
-    loadings = np.linalg.norm(data.svt, axis=0)**2
+    if opts['dtype'] == 'wfield_f':
+        loadings = np.linalg.norm(data, axis=0)**2
 
     def calc_score(y_true, y_pred):
         '''
-        This function returns an R2 score based on the loadings of each component.
+        This function returns an R2 score. 
+        TO-DO: Handle single-dimensional data, e.g. individual cells.
         '''
-        
         numerator = ((y_true - y_pred) ** 2).sum(axis=0, dtype=np.float64)
         denominator = (
             (y_true - np.mean(y_true, axis=0)) ** 2
@@ -177,12 +155,15 @@ def mint_calc_score(data):
         # y_true is not interesting for scoring a regression anyway
         output_scores[nonzero_numerator & ~nonzero_denominator] = 0.0
 
-        return np.average(output_scores, weights=loadings)
+        if opts['dtype'] == 'wfield_f':
+            return output_scores, np.average(output_scores, weights=loadings)
+        else:
+            return output_scores, np.average(output_scores)
 
     return calc_score
 
 
-def mint_score_func(design_df, data, cv=5, scoring='r2', n_jobs=-1):
+def mint_score_func(design_df, data, cv=5, scoring='r2', n_jobs=-1, mode='multiple'):
     '''
     This function returns a function which calculates the negative weighted R2 score of a ridge model, 
     with the value of alpha being the only parameter. Used in conjungtion with fminbound.
@@ -191,12 +172,14 @@ def mint_score_func(design_df, data, cv=5, scoring='r2', n_jobs=-1):
         '''
         Score function
         '''
-
-        mdl = Ridge(alpha=alpha)
+        mdl = Ridge(alpha=alpha, fit_intercept=False)
         pipeline = make_pipeline(StandardScaler(), mdl)
         scores = cross_val_score(pipeline, design_df, data,
-                                 cv=cv, scoring=scoring, n_jobs=n_jobs)
-        return -np.mean(scores)
+                                    cv=cv, scoring=scoring, n_jobs=n_jobs)
+        if mode == 'multiple':
+            return -np.mean(scores)
+        elif mode == 'single':
+            return -scores
 
     return score_func
 
