@@ -28,7 +28,8 @@ def load_data(opts):
     elif opts['dtype'] == 'neuron_f':
         fname = pjoin(rec_path, f'{opts["rec_name"]}.npy')
         struct = np.load(fname, allow_pickle=True)[()]
-        data = struct['Y_denoised_calcium']
+        data = struct['Y_raw_fluorescence']
+        # data = struct['Y_denoised_calcium']
         # data = struct['Y_raw_fluorescence']
     elif opts['dtype'] == 'neuron_fr':
         fname = pjoin(rec_path, f'{opts["rec_name"]}.npy')

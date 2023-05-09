@@ -137,11 +137,9 @@ def mint_calc_score(data, opts):
     if opts['dtype'] == 'wfield_f':
         loadings = np.linalg.norm(data, axis=0)**2
 
-    def calc_score(y_true, y_pred):
+    def calc_score(y_true, y_pred, output='mean'):
         '''
-        This function returns an R2 score. 
-        TO-DO: Handle single-dimensional data, e.g. individual cells.
-        '''
+        This function returns an R2 score.         '''
         numerator = ((y_true - y_pred) ** 2).sum(axis=0, dtype=np.float64)
         denominator = (
             (y_true - np.mean(y_true, axis=0)) ** 2
@@ -155,10 +153,14 @@ def mint_calc_score(data, opts):
         # y_true is not interesting for scoring a regression anyway
         output_scores[nonzero_numerator & ~nonzero_denominator] = 0.0
 
-        if opts['dtype'] == 'wfield_f':
-            return output_scores, np.average(output_scores, weights=loadings)
-        else:
-            return output_scores, np.average(output_scores)
+        if output == 'mean':
+            if opts['dtype'] == 'wfield_f':
+                return np.average(output_scores, weights=loadings)
+            return np.average(output_scores)
+        if output == 'full':
+            if opts['dtype'] == 'wfield_f':
+                return np.average(output_scores, weights=loadings), output_scores
+            return np.average(output_scores), output_scores
 
     return calc_score
 
