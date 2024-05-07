@@ -1,6 +1,6 @@
 ## Regression benchmarking package
 
-Code for testing the accuracy and speed of various implementations of ridge regression on widefield calcium imaging data. Scalable to handle an arbitrary number of methods for calculating alpha (the ridge parameter or parameters) and for performing cross-validated prediction. Currently requires a 'demo_model.mat' file in the session directory, as outputted by Max Melin's [ridge-model-matlab-baseline](https://github.com/mdmelin/ridge-model-matlab-baseline) package. You can download an example one [here](https://drive.google.com/file/d/1JT7VCApGdOhRStd-yWtgCFuFnCx-YvV9/view?usp=sharing) (session 09-Aug-2018, animal mSM63, data from [Mussal et al. 2019](https://www.nature.com/articles/s41593-019-0502-4)).
+Code for testing the accuracy and speed of various implementations of ridge regression on widefield calcium imaging data. Scalable to handle an arbitrary number of methods for calculating alpha (the ridge parameter or parameters) and for performing cross-validated prediction. Currently requires a 'demo_model.mat' file in the session directory, as outputted by Max Melin's [ridge-model-matlab-baseline](https://github.com/mdmelin/ridge-model-matlab-baseline) package. You can download an example one [here](https://drive.google.com/drive/folders/1tLr6DpzlrCjIA95QeYPNDErx1eZh5ZA-?usp=sharing) (session 09-Aug-2018, animal mSM63, data from [Mussal et al. 2019](https://www.nature.com/articles/s41593-019-0502-4)).
 
 First run only:
 1. Install an [Anaconda](https://www.anaconda.com/download/) distribution of Python.
